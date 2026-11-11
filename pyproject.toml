@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "discord-game-spoof"
 version = "0.1.0"
-description = "show fake games on discord via fake processes or rich presence ipc"
+description = "show fake games on discord via fake processes"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
@@ -13,7 +13,6 @@ dependencies = []
 
 [project.scripts]
 discord-fake-process = "discord_game_spoof.process_spoof:main"
-discord-fake-rpc = "discord_game_spoof.rpc_spoof:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
