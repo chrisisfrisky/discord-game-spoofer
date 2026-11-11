@@ -29,4 +29,4 @@ discord-fake-process --list-only --count 10
 discord-fake-rpc --pipe 1 --pool 20 --count 2 --interval 120
 ```
 
-ctrl+c stops either one. the process method compiles `tools/fakewin.cs` on first run (into `build/`, gitignored) using the csc that ships with windows, so no binaries live in the repo. set `FAKEWIN_EXE` to use your own idle exe.
+ctrl+c stops either one. the process method compiles `tools/fakewin.cs` on first run (into `build/`) using the csc that ships with windows, so no binaries live in the repo. set `FAKEWIN_EXE` to use your own idle exe.
