@@ -29,4 +29,6 @@ discord-fake-process --list-only --count 10
 discord-fake-rpc --pipe 1 --pool 20 --count 2 --interval 120
 ```
 
+note: discord only shows one detected game as "playing", and a real running game (like roblox) takes priority over the fake.
+
 ctrl+c stops either one. the process method compiles `tools/fakewin.cs` on first run (into `build/`) using the csc that ships with windows, so no binaries live in the repo. set `FAKEWIN_EXE` to use your own idle exe.

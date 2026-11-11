@@ -113,7 +113,12 @@ def build_idle_exe() -> bool:
     print("building idle program from tools/fakewin.cs ...")
     r = subprocess.run([str(csc), "/nologo", "/target:winexe", f"/out:{IDLE_SOURCE}",
                         "/reference:System.Windows.Forms.dll", "/reference:System.Drawing.dll", str(src)])
-    return r.returncode == 0 and IDLE_SOURCE.is_file()
+    if r.returncode != 0 or not IDLE_SOURCE.is_file():
+        return False
+    # pad to ~3 MB: discord seems to ignore tiny exes (trailing zeros don't affect the pe)
+    with open(IDLE_SOURCE, "ab") as f:
+        f.write(b"\0" * max(0, 3_000_000 - IDLE_SOURCE.stat().st_size))
+    return True
 
 
 def main() -> int:
