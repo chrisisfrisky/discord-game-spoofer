@@ -24,6 +24,8 @@ discord-fake-process --count 40 --rotate-minutes 30 --seed 1
 discord-fake-process --list-only --count 10
 ```
 
+it remembers every game it has run in `played.json` inside the workdir and picks unplayed ones first (oldest-played once all are used). `--allow-repeats` turns that off, delete the file to reset.
+
 note: discord only shows one detected game as "playing", and a real running game (like roblox) takes priority over the fake.
 
 ctrl+c stops it. it compiles `tools/fakewin.cs` on first run (into `build/`) using the csc that ships with windows, so no binaries live in the repo. set `FAKEWIN_EXE` to use your own idle exe.

@@ -48,7 +48,28 @@ def safe_rel_path(raw: str) -> Path | None:
     return Path(*parts)
 
 
-def pick_games(entries: list[dict], count: int, rng: random.Random) -> list[Game]:
+def load_played(path: Path) -> dict[str, dict]:
+    """app_id -> {name, last_run (unix seconds), runs}. a missing or corrupt file means nothing played yet."""
+    try:
+        data = json.loads(path.read_text(encoding="utf8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def save_played(path: Path, played: dict[str, dict]) -> None:
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(played, indent=1), encoding="utf8")
+    tmp.replace(path)
+
+
+def mark_played(played: dict[str, dict], game: Game) -> None:
+    rec = played.get(game.app_id, {})
+    played[game.app_id] = {"name": game.name, "last_run": int(time.time()), "runs": int(rec.get("runs", 0)) + 1}
+
+
+def pick_games(entries: list[dict], count: int, rng: random.Random,
+               played: dict[str, dict] | None = None) -> list[Game]:
     pool: list[Game] = []
     for e in entries:
         for ex in e.get("executables") or []:
@@ -62,6 +83,9 @@ def pick_games(entries: list[dict], count: int, rng: random.Random) -> list[Game
     if not pool:
         raise RuntimeError("no usable win32 executables found in the list")
     rng.shuffle(pool)
+    if played:
+        # unplayed first; once those run out, the games played longest ago (sort is stable, so ties stay shuffled)
+        pool.sort(key=lambda g: played[g.app_id].get("last_run", 0) if g.app_id in played else -1)
     return pool[:count]
 
 
@@ -128,6 +152,8 @@ def main() -> int:
                     help="0 = keep the same games; N = swap the whole set every N minutes")
     ap.add_argument("--workdir", default=str(Path(os.environ.get("LOCALAPPDATA", ".")) / "fake_games"))
     ap.add_argument("--seed", type=int, default=None)
+    ap.add_argument("--allow-repeats", action="store_true",
+                    help="ignore played.json and pick games without remembering them")
     ap.add_argument("--list-only", action="store_true", help="print the chosen games and exit")
     args = ap.parse_args()
 
@@ -150,14 +176,20 @@ def main() -> int:
     fleet = Fleet()
     atexit.register(fleet.stop_all)
 
+    played_path = workdir / "played.json"
+    played = {} if args.allow_repeats else load_played(played_path)
+
     def launch_set() -> None:
-        for game in pick_games(entries, args.count, rng):
+        for game in pick_games(entries, args.count, rng, played):
             exe = materialize(game, workdir)
             fleet.start(game, exe)
             print(f"[start] {game.name}  ->  {game.exe_rel}")
+            if not args.allow_repeats:
+                mark_played(played, game)
+                save_played(played_path, played)
 
     if args.list_only:
-        for game in pick_games(entries, args.count, rng):
+        for game in pick_games(entries, args.count, rng, played):
             print(f"{game.app_id}  {game.name}  {game.exe_rel}")
         return 0
 
