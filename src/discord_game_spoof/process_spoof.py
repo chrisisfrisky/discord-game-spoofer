@@ -148,8 +148,10 @@ def build_idle_exe() -> bool:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--count", type=int, default=3, help="games running at the same time")
-    ap.add_argument("--rotate-minutes", type=int, default=0,
-                    help="0 = keep the same games; N = swap the whole set every N minutes")
+    ap.add_argument("--rotate-minutes", type=float, default=0,
+                    help="0 = keep the same games; N = swap the whole set every N minutes (decimals ok)")
+    ap.add_argument("--rotate-seconds", type=float, default=0,
+                    help="same as --rotate-minutes but in seconds, wins if both are given")
     ap.add_argument("--workdir", default=str(Path(os.environ.get("LOCALAPPDATA", ".")) / "fake_games"))
     ap.add_argument("--seed", type=int, default=None)
     ap.add_argument("--allow-repeats", action="store_true",
@@ -165,6 +167,11 @@ def main() -> int:
         return 2
     if not 1 <= args.count <= 200:
         print("--count must be 1..200")
+        return 2
+
+    rotate = args.rotate_seconds or args.rotate_minutes * 60
+    if rotate < 0:
+        print("rotate interval can't be negative")
         return 2
 
     rng = random.Random(args.seed)
@@ -194,16 +201,16 @@ def main() -> int:
         return 0
 
     launch_set()
-    next_rotation = time.monotonic() + args.rotate_minutes * 60
+    next_rotation = time.monotonic() + rotate
     try:
         while True:
-            time.sleep(5)
+            time.sleep(1)
             fleet.revive_dead()
-            if args.rotate_minutes and time.monotonic() >= next_rotation:
+            if rotate and time.monotonic() >= next_rotation:
                 print("[rotate] swapping game set")
                 fleet.stop_all()
                 launch_set()
-                next_rotation = time.monotonic() + args.rotate_minutes * 60
+                next_rotation = time.monotonic() + rotate
     except KeyboardInterrupt:
         print("stopping")
     finally:
