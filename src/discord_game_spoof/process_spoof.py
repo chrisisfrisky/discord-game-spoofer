@@ -95,7 +95,12 @@ def materialize(game: Game, workdir: Path) -> Path:
         raise RuntimeError(f"refusing path outside work dir: {target}")
     target.parent.mkdir(parents=True, exist_ok=True)
     if not target.exists():
-        shutil.copyfile(IDLE_SOURCE, target)
+        # hardlink = same bytes, no extra space per game. the name is what discord sees, so each game still gets its own file.
+        # falls back to a real copy if the link fails (different drive, fat32, etc).
+        try:
+            os.link(IDLE_SOURCE, target)
+        except OSError:
+            shutil.copyfile(IDLE_SOURCE, target)
     return target
 
 
