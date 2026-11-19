@@ -104,8 +104,38 @@ def materialize(game: Game, workdir: Path) -> Path:
     return target
 
 
+def remove_copy(exe: Path, workdir: Path) -> None:
+    """delete one game's copy plus any folders it left empty. never goes above workdir."""
+    if exe.resolve() == IDLE_SOURCE.resolve():
+        return
+    try:
+        exe.unlink()
+    except FileNotFoundError:
+        pass
+    except OSError as e:  # still locked by a process that didn't exit, next run will clean it
+        print(f"[warn] couldn't delete {exe}: {e}")
+        return
+    root = workdir.resolve()
+    d = exe.parent.resolve()
+    while d != root and root in d.parents:
+        try:
+            d.rmdir()
+        except OSError:
+            break
+        d = d.parent.resolve()
+
+
+def prune_copies(workdir: Path) -> int:
+    """remove every leftover game copy in workdir. called at startup, when nothing from this run is running yet."""
+    copies = list(workdir.rglob("*.exe"))
+    for exe in copies:
+        remove_copy(exe, workdir)
+    return len(copies)
+
+
 class Fleet:
-    def __init__(self) -> None:
+    def __init__(self, workdir: Path) -> None:
+        self.workdir = workdir
         self.procs: dict[str, tuple[Game, Path, subprocess.Popen]] = {}
 
     def start(self, game: Game, exe: Path) -> None:
@@ -118,8 +148,16 @@ class Fleet:
 
     def stop_one(self, app_id: str) -> None:
         entry = self.procs.pop(app_id, None)
-        if entry and entry[2].poll() is None:
-            entry[2].terminate()
+        if not entry:
+            return
+        _, exe, p = entry
+        if p.poll() is None:
+            p.terminate()
+            try:
+                p.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                p.kill()
+        remove_copy(exe, self.workdir)
 
     def stop_all(self) -> None:
         for app_id in list(self.procs):
@@ -185,7 +223,7 @@ def main() -> int:
     workdir = Path(args.workdir)
     workdir.mkdir(parents=True, exist_ok=True)
 
-    fleet = Fleet()
+    fleet = Fleet(workdir)
     atexit.register(fleet.stop_all)
 
     played_path = workdir / "played.json"
@@ -204,6 +242,10 @@ def main() -> int:
         for game in pick_games(entries, args.count, rng, played):
             print(f"{game.app_id}  {game.name}  {game.exe_rel}")
         return 0
+
+    pruned = prune_copies(workdir)
+    if pruned:
+        print(f"[cleanup] removed {pruned} old game copies")
 
     launch_set()
     next_rotation = time.monotonic() + rotate
